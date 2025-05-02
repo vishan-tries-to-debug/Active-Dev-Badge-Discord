@@ -1,5 +1,5 @@
 
-# Discord Active Developer Badge Bot Template
+# Discord Active Developer Badge Bot
 
 This template helps you easily set up two Discord bots that interact with each other to qualify for the Discord Active Developer Badge.
 
