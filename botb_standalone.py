@@ -118,8 +118,9 @@ async def process_ping_queue() -> None:
         try:
             print(f"📤 Sending messages to channel: {channel.name}")
 
-            # Trigger Bot A's slash command
-            await trigger_bot_a_slash_command()
+            # Send a message that looks like a slash command
+            await channel.send("Bot A, please respond with /ping")
+            print(f"✅ Sent ping request to Bot A")
 
             # Send status message
             status_msg = await channel.send("UptimeRobot just pinged Bot B! I'm active and running! 🔵")

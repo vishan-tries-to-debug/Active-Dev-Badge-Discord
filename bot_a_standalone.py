@@ -63,6 +63,11 @@ async def on_message(message: discord.Message) -> None:
         
     if message.content == "!help":
         await message.channel.send("Available commands: !status, !help, and /ping")
+    
+    # Respond to Bot B's ping request
+    if message.content == "Bot A, please respond with /ping":
+        await message.channel.send("Pong! Bot A is online and active 🟢")
+        print(f"✅ Responded to Bot B's ping request in {message.guild.name}")
 
 # ===== SLASH COMMANDS =====
 @tree.command(name="ping", description="Check if Bot A is online")
