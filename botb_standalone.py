@@ -6,18 +6,19 @@ import asyncio
 from discord import app_commands
 import aiohttp
 import json
+from typing import List, Optional
 
 # ===== CONFIGURATION =====
 # Set Bot B token from environment variable or use a placeholder
-TOKEN = os.environ.get("DISCORD_BOT_B_TOKEN", "YOUR_BOT_B_TOKEN_HERE")
+TOKEN: str = os.environ.get("DISCORD_BOT_B_TOKEN", "YOUR_BOT_B_TOKEN_HERE")
 
 # Get channel ID from environment variable or use placeholder
 # To get a channel ID: Enable Developer Mode in Discord settings,
 # right-click on a channel, and select "Copy ID"
-TARGET_CHANNEL_ID = int(os.environ.get("DISCORD_TARGET_CHANNEL_ID", "123456789012345678"))
+TARGET_CHANNEL_ID: int = int(os.environ.get("DISCORD_TARGET_CHANNEL_ID", "123456789012345678"))
 
 # Get Bot A's application ID
-BOT_A_APP_ID = os.environ.get("BOT_A_APP_ID", "YOUR_BOT_A_APP_ID_HERE")
+BOT_A_APP_ID: str = os.environ.get("BOT_A_APP_ID", "YOUR_BOT_A_APP_ID_HERE")
 
 # ===== BOT SETUP =====
 intents = discord.Intents.default()
@@ -30,9 +31,9 @@ tree = app_commands.CommandTree(client)
 app = Flask(__name__)
 
 # Queue to hold ping requests
-ping_queue = []
+ping_queue: List[int] = []
 
-async def trigger_bot_a_slash_command():
+async def trigger_bot_a_slash_command() -> None:
     """Trigger Bot A's slash command using Discord's API"""
     async with aiohttp.ClientSession() as session:
         # Get the command data for Bot A's ping command
@@ -51,7 +52,7 @@ async def trigger_bot_a_slash_command():
                     
                     if ping_command:
                         # Trigger the command
-                        command_url = f"https://discord.com/api/v10/interactions"
+                        command_url = "https://discord.com/api/v10/interactions"
                         interaction_data = {
                             "type": 2,
                             "application_id": BOT_A_APP_ID,
@@ -76,7 +77,7 @@ async def trigger_bot_a_slash_command():
         except Exception as e:
             print(f"❌ Error triggering command: {e}")
 
-async def process_ping_queue():
+async def process_ping_queue() -> None:
     """Process ping requests in the bot's event loop"""
     if not ping_queue:
         return  # Nothing to process
@@ -93,7 +94,7 @@ async def process_ping_queue():
     print(f"🔄 Processing ping to channel {channel_id}")
 
     # First try the cache
-    channel = client.get_channel(channel_id)
+    channel: Optional[discord.TextChannel] = client.get_channel(channel_id)
 
     # If not in cache, try to fetch it
     if not channel:
@@ -131,7 +132,7 @@ async def process_ping_queue():
 
 # ===== FLASK ROUTES =====
 @app.route("/")
-def ping_webhook():
+def ping_webhook() -> dict:
     """
     This endpoint is called by Uptime Robot or similar services
     to trigger the bot to send messages to Discord
@@ -145,7 +146,7 @@ def ping_webhook():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/status")
-def status():
+def status() -> dict:
     try:
         if client.user is not None:
             return jsonify({
@@ -161,14 +162,14 @@ def status():
 
 
 # ===== HELPER FUNCTIONS =====
-def send_ping_message(channel_id):
+def send_ping_message(channel_id: int) -> None:
     """Queue a ping request to be processed by the bot's event loop"""
     print(f"🔄 Queuing ping to channel {channel_id}")
     ping_queue.append(channel_id)
 
 # ===== BOT EVENTS =====
 @client.event
-async def on_ready():
+async def on_ready() -> None:
     print(f'✅ Bot B is ready! Logged in as {client.user}')
     print(f'🏠 Bot B is in {len(client.guilds)} servers')
     
@@ -199,7 +200,7 @@ async def on_ready():
     # Start a task to process the ping queue regularly
     client.loop.create_task(ping_queue_processor())
 
-async def ping_queue_processor():
+async def ping_queue_processor() -> None:
     """Task that runs in the bot's event loop and processes ping requests"""
     while True:
         # Process any pending ping requests
@@ -210,7 +211,7 @@ async def ping_queue_processor():
         await asyncio.sleep(2)
 
 @client.event
-async def on_message(message):
+async def on_message(message: discord.Message) -> None:
     # Ignore messages from other bots
     if message.author.bot:
         return
@@ -226,19 +227,19 @@ async def on_message(message):
 
 # ===== SLASH COMMANDS =====
 @tree.command(name="ping", description="Check if Bot B is online")
-async def ping_command(interaction):
+async def ping_command(interaction: discord.Interaction) -> None:
     await interaction.response.send_message("Pong! Bot B is online and active 🔵")
 
 @tree.command(name="status", description="Check Bot B's status")
-async def status_command(interaction):
+async def status_command(interaction: discord.Interaction) -> None:
     await interaction.response.send_message(f"Bot B is online and in {len(client.guilds)} servers! 🔵")
 
 @tree.command(name="help", description="Get help with Bot B's commands")
-async def help_command(interaction):
+async def help_command(interaction: discord.Interaction) -> None:
     await interaction.response.send_message("Available commands: /ping, /status, /help", ephemeral=True)
 
 # ===== START BOT =====
-def start_discord_bot():
+def start_discord_bot() -> None:
     client.run(TOKEN)
 
 if __name__ == "__main__":

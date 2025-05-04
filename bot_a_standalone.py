@@ -2,28 +2,29 @@ import discord
 import os
 from flask import Flask, jsonify
 import threading
+from typing import Optional
+from discord import app_commands
 
 # ===== CONFIGURATION =====
 # Set Bot A token from environment variable or use a placeholder
-TOKEN = os.environ.get("DISCORD_BOT_A_TOKEN", "YOUR_BOT_A_TOKEN_HERE")
+TOKEN: str = os.environ.get("DISCORD_BOT_A_TOKEN", "YOUR_BOT_A_TOKEN_HERE")
 
 # ===== BOT SETUP =====
 intents = discord.Intents.default()
 intents.message_content = True  # Required to read message content
 
 client = discord.Client(intents=intents)
-from discord import app_commands
 tree = app_commands.CommandTree(client)
 
 # ===== FLASK APP SETUP =====
 app = Flask(__name__)
 
 @app.route("/")
-def home():
+def home() -> str:
     return "Bot A is operational. This endpoint is used for status monitoring."
 
 @app.route("/status")
-def status():
+def status() -> dict:
     try:
         if client.user is not None:
             return jsonify({
@@ -39,7 +40,7 @@ def status():
 
 # ===== BOT EVENTS =====
 @client.event
-async def on_ready():
+async def on_ready() -> None:
     print(f'✅ Bot A is ready! Logged in as {client.user}')
     print(f'🏠 Bot A is in {len(client.guilds)} servers')
     
@@ -51,7 +52,7 @@ async def on_ready():
         print(f"❌ Failed to sync commands: {e}")
 
 @client.event
-async def on_message(message):
+async def on_message(message: discord.Message) -> None:
     # Ignore messages from other bots
     if message.author.bot:
         return
@@ -65,7 +66,7 @@ async def on_message(message):
 
 # ===== SLASH COMMANDS =====
 @tree.command(name="ping", description="Check if Bot A is online")
-async def ping_command(interaction):
+async def ping_command(interaction: discord.Interaction) -> None:
     # Send response
     await interaction.response.send_message("Pong! Bot A is online and active 🟢")
     
@@ -77,7 +78,7 @@ async def ping_command(interaction):
         f.write(f"{interaction.created_at.isoformat()},{interaction.user.name},{interaction.guild.name}\n")
 
 @tree.context_menu(name="Highlight Message")
-async def highlight_message(interaction, message: discord.Message):
+async def highlight_message(interaction: discord.Interaction, message: discord.Message) -> None:
     await interaction.response.send_message(f"Highlighted message: '{message.content}'", ephemeral=True)
     
     # Log the interaction
@@ -88,7 +89,7 @@ async def highlight_message(interaction, message: discord.Message):
         f.write(f"{interaction.created_at.isoformat()},{interaction.user.name},{interaction.guild.name},highlight\n")
 
 # ===== START BOT =====
-def start_discord_bot():
+def start_discord_bot() -> None:
     client.run(TOKEN)
 
 bot_thread = threading.Thread(target=start_discord_bot)
