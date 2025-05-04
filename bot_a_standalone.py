@@ -1,4 +1,3 @@
-
 import discord
 import os
 from flask import Flask, jsonify
@@ -53,17 +52,7 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    # Handle !pingme command (from Bot B)
-    if message.content == "!pingme":
-        await message.channel.send("Bot A got your ping! 🟢")
-        return
-    
-    # Handle !activatebadge command (from Bot B)
-    if message.content == "!activatebadge":
-        await message.channel.send("Bot A acknowledges your Active Developer Badge activation request! ✅")
-        return
-    
-    # Ignore other messages from bots
+    # Ignore messages from other bots
     if message.author.bot:
         return
     
@@ -72,16 +61,31 @@ async def on_message(message):
         await message.channel.send(f"Bot A is online and listening! In {len(client.guilds)} servers.")
         
     if message.content == "!help":
-        await message.channel.send("Available commands: !pingme, !status, !help, !activatebadge, and /ping")
+        await message.channel.send("Available commands: !status, !help, and /ping")
 
 # ===== SLASH COMMANDS =====
 @tree.command(name="ping", description="Check if Bot A is online")
 async def ping_command(interaction):
+    # Send response
     await interaction.response.send_message("Pong! Bot A is online and active 🟢")
+    
+    # Log the interaction
+    print(f"✅ Received /ping command from {interaction.user.name} in {interaction.guild.name}")
+    
+    # Log to a file for tracking Active Developer Badge qualification
+    with open("interaction_log.txt", "a") as f:
+        f.write(f"{interaction.created_at.isoformat()},{interaction.user.name},{interaction.guild.name}\n")
 
 @tree.context_menu(name="Highlight Message")
 async def highlight_message(interaction, message: discord.Message):
     await interaction.response.send_message(f"Highlighted message: '{message.content}'", ephemeral=True)
+    
+    # Log the interaction
+    print(f"✅ Received highlight command from {interaction.user.name} in {interaction.guild.name}")
+    
+    # Log to a file for tracking Active Developer Badge qualification
+    with open("interaction_log.txt", "a") as f:
+        f.write(f"{interaction.created_at.isoformat()},{interaction.user.name},{interaction.guild.name},highlight\n")
 
 # ===== START BOT =====
 def start_discord_bot():

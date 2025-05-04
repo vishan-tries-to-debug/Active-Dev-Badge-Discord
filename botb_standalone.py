@@ -3,6 +3,9 @@ import os
 from flask import Flask, jsonify
 import threading
 import asyncio
+from discord import app_commands
+import aiohttp
+import json
 
 # ===== CONFIGURATION =====
 # Set Bot B token from environment variable or use a placeholder
@@ -13,11 +16,15 @@ TOKEN = os.environ.get("DISCORD_BOT_B_TOKEN", "YOUR_BOT_B_TOKEN_HERE")
 # right-click on a channel, and select "Copy ID"
 TARGET_CHANNEL_ID = int(os.environ.get("DISCORD_TARGET_CHANNEL_ID", "123456789012345678"))
 
+# Get Bot A's application ID
+BOT_A_APP_ID = os.environ.get("BOT_A_APP_ID", "YOUR_BOT_A_APP_ID_HERE")
+
 # ===== BOT SETUP =====
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
 client = discord.Client(intents=intents)
+tree = app_commands.CommandTree(client)
 
 # ===== FLASK APP SETUP =====
 app = Flask(__name__)
@@ -25,42 +32,49 @@ app = Flask(__name__)
 # Queue to hold ping requests
 ping_queue = []
 
-# ===== FLASK ROUTES =====
-@app.route("/")
-def ping_webhook():
-    """
-    This endpoint is called by Uptime Robot or similar services
-    to trigger the bot to send messages to Discord
-    """
-    try:
-        print(f"🔔 Ping webhook accessed")
-        send_ping_message(TARGET_CHANNEL_ID)
-        return jsonify({"status": "ping sent", "success": True})
-    except Exception as e:
-        print(f"❌ Ping webhook error: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route("/status")
-def status():
-    try:
-        if client.user is not None:
-            return jsonify({
-                "status": "online",
-                "bot_name": str(client.user),
-                "server_count": len(client.guilds)
-            })
-        else:
-            return jsonify({"status": "waiting"}), 200
-    except Exception as e:
-        print(f"❌ Status check error: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-# ===== HELPER FUNCTIONS =====
-def send_ping_message(channel_id):
-    """Queue a ping request to be processed by the bot's event loop"""
-    print(f"🔄 Queuing ping to channel {channel_id}")
-    ping_queue.append(channel_id)
+async def trigger_bot_a_slash_command():
+    """Trigger Bot A's slash command using Discord's API"""
+    async with aiohttp.ClientSession() as session:
+        # Get the command data for Bot A's ping command
+        url = f"https://discord.com/api/v10/applications/{BOT_A_APP_ID}/commands"
+        headers = {
+            "Authorization": f"Bot {TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            # Get the command ID
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    commands = await response.json()
+                    ping_command = next((cmd for cmd in commands if cmd["name"] == "ping"), None)
+                    
+                    if ping_command:
+                        # Trigger the command
+                        command_url = f"https://discord.com/api/v10/interactions"
+                        interaction_data = {
+                            "type": 2,
+                            "application_id": BOT_A_APP_ID,
+                            "guild_id": str(client.guilds[0].id) if client.guilds else None,
+                            "channel_id": str(TARGET_CHANNEL_ID),
+                            "data": {
+                                "name": "ping",
+                                "id": ping_command["id"],
+                                "type": 1
+                            }
+                        }
+                        
+                        async with session.post(command_url, headers=headers, json=interaction_data) as response:
+                            if response.status == 204:
+                                print("✅ Successfully triggered Bot A's slash command")
+                            else:
+                                print(f"❌ Failed to trigger command: {await response.text()}")
+                    else:
+                        print("❌ Could not find Bot A's ping command")
+                else:
+                    print(f"❌ Failed to get commands: {await response.text()}")
+        except Exception as e:
+            print(f"❌ Error triggering command: {e}")
 
 async def process_ping_queue():
     """Process ping requests in the bot's event loop"""
@@ -103,13 +117,8 @@ async def process_ping_queue():
         try:
             print(f"📤 Sending messages to channel: {channel.name}")
 
-            # Send pingme command
-            ping_msg = await channel.send("!pingme")
-            print(f"✅ Sent !pingme message")
-
-            # Send badge activation command
-            badge_msg = await channel.send("!activatebadge")
-            print(f"✅ Sent badge activation message")
+            # Trigger Bot A's slash command
+            await trigger_bot_a_slash_command()
 
             # Send status message
             status_msg = await channel.send("UptimeRobot just pinged Bot B! I'm active and running! 🔵")
@@ -120,11 +129,55 @@ async def process_ping_queue():
     else:
         print(f"❌ Could not find any valid channel to send messages to")
 
+# ===== FLASK ROUTES =====
+@app.route("/")
+def ping_webhook():
+    """
+    This endpoint is called by Uptime Robot or similar services
+    to trigger the bot to send messages to Discord
+    """
+    try:
+        print(f"🔔 Ping webhook accessed")
+        send_ping_message(TARGET_CHANNEL_ID)
+        return jsonify({"status": "ping sent", "success": True})
+    except Exception as e:
+        print(f"❌ Ping webhook error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/status")
+def status():
+    try:
+        if client.user is not None:
+            return jsonify({
+                "status": "online",
+                "bot_name": str(client.user),
+                "server_count": len(client.guilds)
+            })
+        else:
+            return jsonify({"status": "waiting"}), 200
+    except Exception as e:
+        print(f"❌ Status check error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ===== HELPER FUNCTIONS =====
+def send_ping_message(channel_id):
+    """Queue a ping request to be processed by the bot's event loop"""
+    print(f"🔄 Queuing ping to channel {channel_id}")
+    ping_queue.append(channel_id)
+
 # ===== BOT EVENTS =====
 @client.event
 async def on_ready():
     print(f'✅ Bot B is ready! Logged in as {client.user}')
     print(f'🏠 Bot B is in {len(client.guilds)} servers')
+    
+    # Sync slash commands with Discord
+    try:
+        synced = await tree.sync()
+        print(f"🔄 Synced {len(synced)} command(s)")
+    except Exception as e:
+        print(f"❌ Failed to sync commands: {e}")
 
     # Verify the target channel exists
     channel = client.get_channel(TARGET_CHANNEL_ID)
@@ -170,6 +223,19 @@ async def on_message(message):
 
     if message.content == "!help":
         await message.channel.send("Available commands: !botb, !status, !help")
+
+# ===== SLASH COMMANDS =====
+@tree.command(name="ping", description="Check if Bot B is online")
+async def ping_command(interaction):
+    await interaction.response.send_message("Pong! Bot B is online and active 🔵")
+
+@tree.command(name="status", description="Check Bot B's status")
+async def status_command(interaction):
+    await interaction.response.send_message(f"Bot B is online and in {len(client.guilds)} servers! 🔵")
+
+@tree.command(name="help", description="Get help with Bot B's commands")
+async def help_command(interaction):
+    await interaction.response.send_message("Available commands: /ping, /status, /help", ephemeral=True)
 
 # ===== START BOT =====
 def start_discord_bot():
